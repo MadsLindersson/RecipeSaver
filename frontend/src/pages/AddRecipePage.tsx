@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { mockDb } from '@/services/mockDb';
+import { supabase } from '@/lib/supabase';
 import type { FoodType, Ingredient } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,22 +37,19 @@ export const AddRecipePage: React.FC = () => {
     if (!url) return;
     setIsScraping(true);
     try {
-      const response = await fetch('http://localhost:3001/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+      const { data, error } = await supabase.functions.invoke('scrape', {
+        body: { url }
       });
       
-      if (!response.ok) throw new Error('Failed to scrape');
+      if (error) throw error;
       
-      const data = await response.json();
       setTitle(data.title || '');
       
       if (data.ingredients && data.ingredients.length > 0) {
         setIngredients(data.ingredients.map((ing: any) => ({
           name: ing.name,
           amount: ing.amount,
-          unit: ing.unit,
+          unit: ing.unit || 'pcs',
           category: 'Other',
           isMain: false
         })));
@@ -62,7 +59,7 @@ export const AddRecipePage: React.FC = () => {
         setSteps(data.steps);
       }
     } catch (err) {
-      alert('Could not scrape recipe. The backend might not be running or the website is protected.');
+      alert('Could not scrape recipe. The Edge Function might not be deployed or the website is protected.');
     } finally {
       setIsScraping(false);
     }
@@ -102,17 +99,19 @@ export const AddRecipePage: React.FC = () => {
 
     setIsSaving(true);
     try {
-      await mockDb.saveRecipe({
+      const { error } = await supabase.from('recipes').insert({
         title,
-        url: url || undefined,
-        foodType,
+        url: url || null,
+        food_type: foodType,
         servings,
-        servingsType,
+        servings_type: servingsType,
         ingredients: ingredients.filter(i => i.name.trim() !== ''),
         steps: steps.filter(s => s.trim() !== ''),
-        userId: user.id,
-        authorName: user.username,
+        user_id: user.id,
+        author_name: user.username,
       });
+
+      if (error) throw error;
       navigate('/');
     } catch (err) {
       alert('Failed to save recipe.');

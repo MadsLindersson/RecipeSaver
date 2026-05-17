@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { User } from '@/types';
-import { mockDb } from '@/services/mockDb';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Loader2, ChefHat } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { Card, CardContent } from '@/components/ui/card';
+import { ChefHat, Loader2, ArrowRight } from 'lucide-react';
 
 export const UsersListPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -11,8 +11,18 @@ export const UsersListPage: React.FC = () => {
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const data = await mockDb.getUsers();
-      setUsers(data);
+      try {
+        const { data, error } = await supabase.from('profiles').select('*');
+        if (data) {
+          setUsers(data.map(u => ({
+            id: u.id,
+            username: u.username,
+            email: u.email
+          })));
+        }
+      } catch (err) {
+        console.error('Fetch users error:', err);
+      }
       setIsLoading(false);
     };
     fetchUsers();

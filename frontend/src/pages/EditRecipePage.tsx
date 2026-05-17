@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { mockDb } from '@/services/mockDb';
+import { supabase } from '@/lib/supabase';
 import type { FoodType, Recipe, Ingredient } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,17 +35,22 @@ export const EditRecipePage: React.FC = () => {
   useEffect(() => {
     const fetchRecipe = async () => {
       if (id) {
-        const data = await mockDb.getRecipe(id);
+        const { data, error } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('id', id)
+          .single();
+
         if (data) {
-          if (user && data.userId !== user.id) {
+          if (user && data.user_id !== user.id) {
              alert("You can only edit your own recipes.");
              navigate('/');
              return;
           }
           setTitle(data.title);
-          setFoodType(data.foodType);
+          setFoodType(data.food_type as FoodType);
           setServings(data.servings || 1);
-          setServingsType(data.servingsType || 'servings');
+          setServingsType(data.servings_type as 'servings' | 'pieces');
           setIngredients(data.ingredients);
           setSteps(data.steps);
           setUrl(data.url);
@@ -90,15 +95,20 @@ export const EditRecipePage: React.FC = () => {
 
     setIsSaving(true);
     try {
-      await mockDb.updateRecipe(id, {
-        title,
-        url: url || undefined,
-        foodType,
-        servings,
-        servingsType,
-        ingredients: ingredients.filter(i => i.name.trim() !== ''),
-        steps: steps.filter(s => s.trim() !== ''),
-      });
+      const { error } = await supabase
+        .from('recipes')
+        .update({
+          title,
+          url: url || null,
+          food_type: foodType,
+          servings,
+          servings_type: servingsType,
+          ingredients: ingredients.filter(i => i.name.trim() !== ''),
+          steps: steps.filter(s => s.trim() !== ''),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
       navigate(`/recipe/${id}`);
     } catch (err) {
       alert('Failed to update recipe.');

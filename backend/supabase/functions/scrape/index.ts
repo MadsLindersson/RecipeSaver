@@ -1,23 +1,20 @@
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import "@supabase/functions-js/edge-runtime.d.ts"
+import * as cheerio from "npm:cheerio@1.0.0-rc.12"
 
-export interface ScrapedIngredient {
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+interface ScrapedIngredient {
   name: string;
   amount: string;
   unit: string;
 }
 
-export interface ScrapedRecipe {
-  title: string;
-  ingredients: ScrapedIngredient[];
-  steps: string[];
-}
-
 const UNITS = ['g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup', 'pcs', 'oz', 'lb', 'pinch', 'to taste'];
 
 const parseIngredient = (text: string): ScrapedIngredient => {
-  // Regex to match "amount unit name" or "amount name"
-  // Handles fractions (1/2), decimals (1.5), and ranges (1-2)
   const amountRegex = /^(\d+[\/\d\.-]*)\s*/;
   const amountMatch = text.match(amountRegex);
   
@@ -29,8 +26,7 @@ const parseIngredient = (text: string): ScrapedIngredient => {
     remaining = text.replace(amountRegex, '').trim();
   }
 
-  // Look for unit at the start of remaining text
-  let unit = 'pcs'; // default
+  let unit = 'pcs'; 
   for (const u of UNITS) {
     const unitRegex = new RegExp(`^${u}s?\\b`, 'i');
     if (unitRegex.test(remaining)) {
@@ -40,7 +36,6 @@ const parseIngredient = (text: string): ScrapedIngredient => {
     }
   }
 
-  // Clean up remaining text (e.g. remove leading "of" if present: "1 cup of flour")
   if (remaining.toLowerCase().startsWith('of ')) {
     remaining = remaining.substring(3).trim();
   }
@@ -52,13 +47,28 @@ const parseIngredient = (text: string): ScrapedIngredient => {
   };
 };
 
-export const scrapeRecipe = async (url: string): Promise<ScrapedRecipe> => {
+Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   try {
-    const { data: html } = await axios.get(url, {
+    const { url } = await req.json()
+    if (!url) {
+      return new Response(JSON.stringify({ error: 'URL is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       }
     });
+    
+    const html = await response.text();
     const $ = cheerio.load(html);
 
     const title = $('h1').first().text().trim() || $('title').text().trim();
@@ -128,7 +138,7 @@ export const scrapeRecipe = async (url: string): Promise<ScrapedRecipe> => {
       });
     }
 
-    // JSON-LD Fallback for more robust extraction
+    // JSON-LD Fallback
     if (rawIngredients.length === 0 || steps.length === 0) {
       $('script[type="application/ld+json"]').each((_, el) => {
         try {
@@ -147,7 +157,7 @@ export const scrapeRecipe = async (url: string): Promise<ScrapedRecipe> => {
             }
           }
         } catch (e) {
-          // Ignore parse errors
+          // Ignore
         }
       });
     }
@@ -156,13 +166,20 @@ export const scrapeRecipe = async (url: string): Promise<ScrapedRecipe> => {
       .filter(i => i.length > 2)
       .map(parseIngredient);
 
-    return {
+    const result = {
       title,
       ingredients: parsedIngredients,
       steps: steps.filter(s => s.length > 5)
     };
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
   } catch (error) {
-    console.error('Scraping error:', error);
-    throw new Error('Failed to scrape the recipe from the provided URL.');
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
-};
+})

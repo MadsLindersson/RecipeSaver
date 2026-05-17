@@ -60,13 +60,12 @@ create policy "Users can delete own recipes." on recipes for delete using (auth.
 
 ## 4. Recipe Scraper (Supabase Edge Function)
 
-Since we are removing the Express backend, the scraper logic needs to live in a **Supabase Edge Function** to avoid CORS issues.
+Since we are removing the Express backend, the scraper logic lives in a **Supabase Edge Function** within the `backend/` folder.
 
-1. Install Supabase CLI: `npm install supabase --save-dev`
-2. Initialize: `npx supabase init`
-3. Create function: `npx supabase functions new scrape`
-4. Copy the logic from `backend/src/services/scraper.ts` into the new function (adjusting for Deno imports).
-5. Deploy: `npx supabase functions deploy scrape`
+1. Navigate to backend: `cd backend`
+2. Install Supabase CLI (if not present): `npm install supabase --save-dev`
+3. The scraper is located at `backend/supabase/functions/scrape/index.ts`.
+4. Deploy: `npx supabase functions deploy scrape`
 
 ## 5. Frontend Integration
 Once Supabase is ready, follow these steps in the `frontend` folder:

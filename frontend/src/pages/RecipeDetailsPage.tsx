@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Recipe } from '@/types';
-import { mockDb } from '@/services/mockDb';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { scaleAmount } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,10 +22,30 @@ export const RecipeDetailsPage: React.FC = () => {
   useEffect(() => {
     const fetchRecipe = async () => {
       if (id) {
-        const data = await mockDb.getRecipe(id);
-        setRecipe(data);
+        const { data, error } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('id', id)
+          .single();
+        
         if (data) {
-          setCurrentServings(data.servings || 1);
+          const formatted: Recipe = {
+            id: data.id,
+            title: data.title,
+            url: data.url,
+            foodType: data.food_type,
+            servings: data.servings,
+            servingsType: data.servings_type,
+            ingredients: data.ingredients,
+            steps: data.steps,
+            userId: data.user_id,
+            authorName: data.author_name,
+            originalUserId: data.original_user_id,
+            originalAuthorName: data.original_author_name,
+            createdAt: data.created_at
+          };
+          setRecipe(formatted);
+          setCurrentServings(formatted.servings || 1);
         }
       }
       setIsLoading(false);
@@ -36,13 +56,21 @@ export const RecipeDetailsPage: React.FC = () => {
   const handleSaveToMyRecipes = async () => {
     if (!user || !recipe) return;
     try {
-      await mockDb.saveRecipe({
-        ...recipe,
-        userId: user.id,
-        authorName: user.username,
-        originalUserId: recipe.originalUserId || recipe.userId,
-        originalAuthorName: recipe.originalAuthorName || recipe.authorName,
+      const { error } = await supabase.from('recipes').insert({
+        title: recipe.title,
+        url: recipe.url,
+        food_type: recipe.foodType,
+        servings: recipe.servings,
+        servings_type: recipe.servingsType,
+        ingredients: recipe.ingredients,
+        steps: recipe.steps,
+        user_id: user.id,
+        author_name: user.username,
+        original_user_id: recipe.originalUserId || recipe.userId,
+        original_author_name: recipe.originalAuthorName || recipe.authorName,
       });
+
+      if (error) throw error;
       alert('Recipe saved to your account!');
       navigate('/');
     } catch (err) {

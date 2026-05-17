@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { mockDb } from '@/services/mockDb';
+import { supabase } from '@/lib/supabase';
 import type { Recipe, User } from '@/types';
 import { LogOut, Plus, User as UserIcon, ChefHat, Search, Users, Menu, X } from 'lucide-react';
 
@@ -104,13 +104,45 @@ export const Navbar: React.FC = () => {
   useEffect(() => {
     const performSearch = async () => {
       if (searchQuery.trim().length > 1) {
-        const [recipes, users] = await Promise.all([
-          mockDb.searchRecipes(searchQuery),
-          mockDb.searchUsers(searchQuery)
-        ]);
-        setRecipeResults(recipes);
-        setUserResults(users);
-        setIsSearchOpen(true);
+        try {
+          const [recipeRes, userRes] = await Promise.all([
+            supabase
+              .from('recipes')
+              .select('*')
+              .ilike('title', `%${searchQuery}%`),
+            supabase
+              .from('profiles')
+              .select('*')
+              .or(`username.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
+          ]);
+
+          if (recipeRes.data) {
+            setRecipeResults(recipeRes.data.map(r => ({
+              id: r.id,
+              title: r.title,
+              url: r.url,
+              foodType: r.food_type,
+              servings: r.servings,
+              servingsType: r.servings_type,
+              ingredients: r.ingredients,
+              steps: r.steps,
+              userId: r.user_id,
+              authorName: r.author_name,
+              createdAt: r.created_at
+            })));
+          }
+
+          if (userRes.data) {
+            setUserResults(userRes.data.map(u => ({
+              id: u.id,
+              username: u.username,
+              email: u.email
+            })));
+          }
+          setIsSearchOpen(true);
+        } catch (err) {
+          console.error('Search error:', err);
+        }
       } else {
         setRecipeResults([]);
         setUserResults([]);

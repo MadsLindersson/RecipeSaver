@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { Recipe } from '@/types';
-import { mockDb } from '@/services/mockDb';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +15,31 @@ export const RecipeFeed: React.FC = () => {
   useEffect(() => {
     const fetchRecipes = async () => {
       if (user) {
-        const data = await mockDb.getRecipesByUser(user.id);
-        setRecipes(data);
+        const { data, error } = await supabase
+          .from('recipes')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (data) {
+          // Map database snake_case to frontend camelCase
+          const formattedRecipes: Recipe[] = data.map(r => ({
+            id: r.id,
+            title: r.title,
+            url: r.url,
+            foodType: r.food_type,
+            servings: r.servings,
+            servingsType: r.servings_type,
+            ingredients: r.ingredients,
+            steps: r.steps,
+            userId: r.user_id,
+            authorName: r.author_name,
+            originalUserId: r.original_user_id,
+            originalAuthorName: r.original_author_name,
+            createdAt: r.created_at
+          }));
+          setRecipes(formattedRecipes);
+        }
       }
       setIsLoading(false);
     };

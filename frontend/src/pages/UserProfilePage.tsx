@@ -1,30 +1,59 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { Recipe, User } from '@/types';
-import { mockDb } from '@/services/mockDb';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ChefHat, User as UserIcon } from 'lucide-react';
 
 export const UserProfilePage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
+  const [userProfile, setUserProfile] = useState<User | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [profileUser, setProfileUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchUserData = async () => {
       if (userId) {
-        const [userData, recipeData] = await Promise.all([
-          mockDb.getUser(userId),
-          mockDb.getRecipesByUser(userId)
-        ]);
-        setProfileUser(userData);
-        setRecipes(recipeData);
+        try {
+          const [userRes, recipeRes] = await Promise.all([
+            supabase.from('profiles').select('*').eq('id', userId).single(),
+            supabase.from('recipes').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+          ]);
+
+          if (userRes.data) {
+            setUserProfile({
+              id: userRes.data.id,
+              username: userRes.data.username,
+              email: userRes.data.email
+            });
+          }
+
+          if (recipeRes.data) {
+            const formatted: Recipe[] = recipeRes.data.map(r => ({
+              id: r.id,
+              title: r.title,
+              url: r.url,
+              foodType: r.food_type,
+              servings: r.servings,
+              servingsType: r.servings_type,
+              ingredients: r.ingredients,
+              steps: r.steps,
+              userId: r.user_id,
+              authorName: r.author_name,
+              originalUserId: r.original_user_id,
+              originalAuthorName: r.original_author_name,
+              createdAt: r.created_at
+            }));
+            setRecipes(formatted);
+          }
+        } catch (err) {
+          console.error('Fetch profile error:', err);
+        }
       }
       setIsLoading(false);
     };
-    fetchData();
+    fetchUserData();
   }, [userId]);
 
   if (isLoading) {
@@ -35,14 +64,14 @@ export const UserProfilePage: React.FC = () => {
     );
   }
 
-  if (!profileUser) {
+  if (!userProfile) {
     return <div className="text-center py-12">User not found.</div>;
   }
 
   return (
     <div className="space-y-8">
       <div className="border-b pb-6">
-        <h1 className="text-4xl font-bold">{profileUser.username}'s Kitchen</h1>
+        <h1 className="text-4xl font-bold">{userProfile.username}'s Kitchen</h1>
         <p className="text-muted-foreground mt-1">{recipes.length} saved recipes</p>
       </div>
 
