@@ -15,7 +15,7 @@ export const RecipeFeed: React.FC = () => {
   useEffect(() => {
     const fetchRecipes = async () => {
       if (user) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('recipes')
           .select('*')
           .eq('user_id', user.id)

@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { User } from '@/types';
 import { supabase } from '@/lib/supabase';
-import { Card, CardContent } from '@/components/ui/card';
-import { ChefHat, Loader2, ArrowRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChefHat, Loader2 } from 'lucide-react';
 
 export const UsersListPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -12,7 +12,7 @@ export const UsersListPage: React.FC = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const { data, error } = await supabase.from('profiles').select('*');
+        const { data } = await supabase.from('profiles').select('*');
         if (data) {
           setUsers(data.map(u => ({
             id: u.id,

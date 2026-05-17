@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +12,6 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const { logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {

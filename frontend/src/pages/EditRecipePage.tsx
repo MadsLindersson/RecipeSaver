@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import type { FoodType, Recipe, Ingredient } from '@/types';
+import type { FoodType, Ingredient } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +35,7 @@ export const EditRecipePage: React.FC = () => {
   useEffect(() => {
     const fetchRecipe = async () => {
       if (id) {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('recipes')
           .select('*')
           .eq('id', id)
