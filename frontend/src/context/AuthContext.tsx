@@ -17,45 +17,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Check active sessions and sets the user
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        // Fetch profile data to get the username
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', session.user.id)
-          .single();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          // Fetch profile data to get the username
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', session.user.id)
+            .single();
 
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          username: profile?.username || session.user.email?.split('@')[0] || 'User',
-        });
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            username: profile?.username || session.user.email?.split('@')[0] || 'User',
+          });
+        }
+      } catch (error) {
+        console.error('Error during getSession:', error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     getSession();
 
     // Listen for changes on auth state (logged in, signed out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', session.user.id)
-          .single();
+      try {
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', session.user.id)
+            .single();
 
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          username: profile?.username || session.user.email?.split('@')[0] || 'User',
-        });
-      } else {
-        setUser(null);
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            username: profile?.username || session.user.email?.split('@')[0] || 'User',
+          });
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error in onAuthStateChange:', error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
