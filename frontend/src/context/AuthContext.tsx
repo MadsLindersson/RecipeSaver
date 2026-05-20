@@ -15,18 +15,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('AuthContext: Initializing...');
+    
+    // Fail-safe: force loading to false after 5 seconds
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.warn('AuthContext: Initialization timed out after 5s. Forcing isLoading to false.');
+        setIsLoading(false);
+      }
+    }, 5000);
+
     // Check active sessions and sets the user
     const getSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('AuthContext: Calling getSession...');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('AuthContext: getSession error:', sessionError);
+        }
+
+        console.log('AuthContext: Session response received:', session ? 'User logged in' : 'No session');
         
         if (session?.user) {
-          // Fetch profile data to get the username
-          const { data: profile } = await supabase
+          console.log('AuthContext: Fetching profile for user:', session.user.id);
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('username')
             .eq('id', session.user.id)
             .single();
+
+          if (profileError) {
+            console.error('AuthContext: Profile fetch error:', profileError);
+          }
 
           setUser({
             id: session.user.id,
@@ -35,16 +56,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         }
       } catch (error) {
-        console.error('Error during getSession:', error);
+        console.error('AuthContext: Fatal error during getSession:', error);
       } finally {
+        console.log('AuthContext: getSession finished, clearing loader.');
         setIsLoading(false);
+        clearTimeout(timeoutId);
       }
     };
 
     getSession();
 
     // Listen for changes on auth state (logged in, signed out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('AuthContext: Auth state changed:', event);
       try {
         if (session?.user) {
           const { data: profile } = await supabase
@@ -62,13 +86,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
         }
       } catch (error) {
-        console.error('Error in onAuthStateChange:', error);
+        console.error('AuthContext: Error in onAuthStateChange:', error);
       } finally {
         setIsLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const logout = async () => {
