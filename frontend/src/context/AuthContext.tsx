@@ -6,6 +6,8 @@ interface AuthContextType {
   user: User | null;
   logout: () => void;
   isLoading: boolean;
+  needsUsername: boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -13,62 +15,65 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [needsUsername, setNeedsUsername] = useState(false);
 
   useEffect(() => {
-    console.log('AuthContext: Initializing...');
-    
-    // Fail-safe: force loading to false after 3 seconds for a snappier feel
+    // Fail-safe to ensure the app doesn't stay stuck if the session check hangs
     const timeoutId = setTimeout(() => {
       if (isLoading) {
-        console.warn('AuthContext: Initialization timeout. Proceeding...');
         setIsLoading(false);
       }
     }, 3000);
 
     const handleUserUpdate = async (session: any) => {
       if (session?.user) {
-        console.log('AuthContext: Setting user:', session.user.id);
         try {
-          const { data: profile, error: profileError } = await supabase
+          const { data: profile } = await supabase
             .from('profiles')
             .select('username')
             .eq('id', session.user.id)
             .single();
 
-          if (profileError) console.error('AuthContext: Profile error:', profileError);
-
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            username: profile?.username || session.user.email?.split('@')[0] || 'User',
-          });
+          if (profile) {
+            setUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              username: profile.username,
+            });
+            setNeedsUsername(false);
+          } else {
+            setUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              username: '',
+            });
+            setNeedsUsername(true);
+          }
         } catch (err) {
-          console.error('AuthContext: Failed to fetch profile:', err);
-          // Set user anyway with default username
+          // If profile fetch fails, assume it doesn't exist yet
           setUser({
             id: session.user.id,
             email: session.user.email || '',
-            username: session.user.email?.split('@')[0] || 'User',
+            username: '',
           });
+          setNeedsUsername(true);
         }
       } else {
         setUser(null);
+        setNeedsUsername(false);
       }
       setIsLoading(false);
     };
 
-    // Check active sessions - Non-blocking
+    // Non-blocking initial session check
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('AuthContext: getSession resolved:', session ? 'User found' : 'No user');
       handleUserUpdate(session);
-    }).catch(err => {
-      console.error('AuthContext: getSession rejected:', err);
+    }).catch(() => {
       setIsLoading(false);
     });
 
-    // Listen for changes on auth state
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('AuthContext: Auth event:', event);
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       handleUserUpdate(session);
     });
 
@@ -78,12 +83,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const refreshProfile = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (profile) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          username: profile.username,
+        });
+        setNeedsUsername(false);
+      }
+    }
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, logout, isLoading, needsUsername, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
