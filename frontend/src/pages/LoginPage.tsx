@@ -28,7 +28,9 @@ export const LoginPage: React.FC = () => {
       if (error) {
         setError(error.message);
       } else {
-        navigate('/');
+        // Use window.location to force a fresh reload of the Auth state
+        // This ensures the UsernameModal check runs immediately
+        window.location.href = '/';
       }
     } catch (err) {
       setError('An error occurred during login.');
