@@ -17,79 +17,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log('AuthContext: Initializing...');
     
-    // Fail-safe: force loading to false after 5 seconds
+    // Fail-safe: force loading to false after 3 seconds for a snappier feel
     const timeoutId = setTimeout(() => {
       if (isLoading) {
-        console.warn('AuthContext: Initialization timed out after 5s. Forcing isLoading to false.');
+        console.warn('AuthContext: Initialization timeout. Proceeding...');
         setIsLoading(false);
       }
-    }, 5000);
+    }, 3000);
 
-    // Check active sessions and sets the user
-    const getSession = async () => {
-      try {
-        console.log('AuthContext: Calling getSession...');
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('AuthContext: getSession error:', sessionError);
-        }
-
-        console.log('AuthContext: Session response received:', session ? 'User logged in' : 'No session');
-        
-        if (session?.user) {
-          console.log('AuthContext: Fetching profile for user:', session.user.id);
+    const handleUserUpdate = async (session: any) => {
+      if (session?.user) {
+        console.log('AuthContext: Setting user:', session.user.id);
+        try {
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('username')
             .eq('id', session.user.id)
             .single();
 
-          if (profileError) {
-            console.error('AuthContext: Profile fetch error:', profileError);
-          }
+          if (profileError) console.error('AuthContext: Profile error:', profileError);
 
           setUser({
             id: session.user.id,
             email: session.user.email || '',
             username: profile?.username || session.user.email?.split('@')[0] || 'User',
           });
+        } catch (err) {
+          console.error('AuthContext: Failed to fetch profile:', err);
+          // Set user anyway with default username
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            username: session.user.email?.split('@')[0] || 'User',
+          });
         }
-      } catch (error) {
-        console.error('AuthContext: Fatal error during getSession:', error);
-      } finally {
-        console.log('AuthContext: getSession finished, clearing loader.');
-        setIsLoading(false);
-        clearTimeout(timeoutId);
+      } else {
+        setUser(null);
       }
+      setIsLoading(false);
     };
 
-    getSession();
+    // Check active sessions - Non-blocking
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('AuthContext: getSession resolved:', session ? 'User found' : 'No user');
+      handleUserUpdate(session);
+    }).catch(err => {
+      console.error('AuthContext: getSession rejected:', err);
+      setIsLoading(false);
+    });
 
-    // Listen for changes on auth state (logged in, signed out, etc.)
+    // Listen for changes on auth state
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('AuthContext: Auth state changed:', event);
-      try {
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('username')
-            .eq('id', session.user.id)
-            .single();
-
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            username: profile?.username || session.user.email?.split('@')[0] || 'User',
-          });
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('AuthContext: Error in onAuthStateChange:', error);
-      } finally {
-        setIsLoading(false);
-      }
+      console.log('AuthContext: Auth event:', event);
+      handleUserUpdate(session);
     });
 
     return () => {
