@@ -1,5 +1,5 @@
 import "@supabase/functions-js/edge-runtime.d.ts"
-import * as cheerio from "npm:cheerio@1.0.0-rc.12"
+import * as cheerio from "cheerio"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +16,7 @@ const UNITS = ['g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup', 'pcs', 'oz', 'lb', 'p
 
 const parseIngredient = (text: string): ScrapedIngredient => {
   // Clean the text: remove checkboxes, bullet points, and weird symbols at the start
-  let cleaned = text.trim()
+  const cleaned = text.trim()
     .replace(/^[▢☐\s•\-\*]+/u, '') // Remove checkboxes and bullet points
     .replace(/\s+/g, ' ')         // Normalize whitespace
     .trim();
@@ -51,8 +51,6 @@ const parseIngredient = (text: string): ScrapedIngredient => {
     remaining = remaining.substring(3).trim();
   }
 
-  // If we didn't find an amount at the start, check if it's "1" by default
-  // and ensure the name doesn't start with a unit that was missed
   return {
     name: remaining || cleaned,
     amount: amount || '1',
@@ -169,22 +167,21 @@ Deno.serve(async (req) => {
               instructions.forEach((s: string) => steps.push(s));
             }
           }
-        } catch (e) {
+          } catch (e) {
           // Ignore
-        }
-      });
-    }
+          }
+          });
+          }
 
-    const parsedIngredients = rawIngredients
-      .filter(i => i.length > 2)
-      .map(parseIngredient);
+          const parsedIngredients = rawIngredients
+          .filter(i => i.length > 2)
+          .map(parseIngredient);
 
-    const result = {
+          const result = {
       title,
       ingredients: parsedIngredients,
       steps: steps.filter(s => s.length > 5)
     };
-
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

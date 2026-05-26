@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import type { Recipe, User } from '@/types';
-import { LogOut, Plus, User as UserIcon, ChefHat, Search, Users, Menu, X } from 'lucide-react';
+import { LogOut, Plus, User as UserIcon, ChefHat, Search, Users, Menu, X, Calculator } from 'lucide-react';
 
 interface SearchResultsProps {
   recipeResults: Recipe[];
@@ -84,7 +84,11 @@ const SearchResults = ({ recipeResults, userResults, searchQuery, onResultClick,
   </div>
 );
 
-export const Navbar: React.FC = () => {
+interface NavbarProps {
+  onOpenCalculator: () => void;
+}
+
+export const Navbar: React.FC<NavbarProps> = ({ onOpenCalculator }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
@@ -221,6 +225,15 @@ export const Navbar: React.FC = () => {
 
               {/* Desktop Nav Actions */}
               <div className="hidden md:flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={onOpenCalculator}
+                  className="gap-2"
+                >
+                  <Calculator className="h-4 w-4" />
+                  <span>Calculators</span>
+                </Button>
                 <Link to="/users">
                   <Button variant="ghost" size="sm" className="gap-2">
                     <Users className="h-4 w-4" />
@@ -323,6 +336,16 @@ export const Navbar: React.FC = () => {
               <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Explore
               </div>
+              <button 
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onOpenCalculator();
+                }}
+                className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors w-full text-left"
+              >
+                <Calculator className="h-5 w-5 text-primary" />
+                <span className="font-medium">Calculators</span>
+              </button>
               <Link 
                 to="/users" 
                 onClick={() => setIsMobileMenuOpen(false)}
