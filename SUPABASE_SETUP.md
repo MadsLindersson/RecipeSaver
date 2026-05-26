@@ -38,10 +38,16 @@ create table recipes (
   ingredients jsonb not null, -- Stores array of Ingredient objects
   steps text[] not null, -- Array of strings
   user_id uuid references auth.users not null,
-  author_name text not null,
-  original_user_id uuid, -- For saved recipes
-  original_author_name text -- For saved recipes
+  original_user_id uuid references auth.users -- For saved recipes
 );
+
+-- MIGRATION: If you already have the tables, run this to update:
+/*
+alter table recipes drop column author_name;
+alter table recipes drop column original_author_name;
+alter table recipes add constraint recipes_original_user_id_fkey 
+  foreign key (original_user_id) references auth.users(id);
+*/
 
 -- Set up Row Level Security (RLS)
 alter table profiles enable row level security;

@@ -2,59 +2,98 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { Recipe, User } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ChefHat, User as UserIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Loader2, ChefHat, User as UserIcon, Pencil, Check, X } from 'lucide-react';
 
 export const UserProfilePage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
+  const { user, refreshProfile } = useAuth();
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const fetchUserData = async () => {
+    if (userId) {
+      try {
+        const [userRes, recipeRes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', userId).single(),
+          supabase.from('recipes')
+            .select('*, author:profiles!user_id(username), original_author:profiles!original_user_id(username)')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+        ]);
+
+        if (userRes.data) {
+          setUserProfile({
+            id: userRes.data.id,
+            username: userRes.data.username,
+            email: userRes.data.email
+          });
+          setNewUsername(userRes.data.username);
+        }
+
+        if (recipeRes.data) {
+          const formatted: Recipe[] = recipeRes.data.map(r => ({
+            id: r.id,
+            title: r.title,
+            url: r.url,
+            foodType: r.food_type,
+            servings: r.servings,
+            servingsType: r.servings_type,
+            ingredients: r.ingredients,
+            steps: r.steps,
+            userId: r.user_id,
+            authorName: (r.author as any)?.username || 'Unknown Chef',
+            originalUserId: r.original_user_id,
+            originalAuthorName: (r.original_author as any)?.username || '',
+            createdAt: r.created_at
+          }));
+          setRecipes(formatted);
+        }
+      } catch (err) {
+        console.error('Fetch profile error:', err);
+      }
+    }
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (userId) {
-        try {
-          const [userRes, recipeRes] = await Promise.all([
-            supabase.from('profiles').select('*').eq('id', userId).single(),
-            supabase.from('recipes').select('*').eq('user_id', userId).order('created_at', { ascending: false })
-          ]);
-
-          if (userRes.data) {
-            setUserProfile({
-              id: userRes.data.id,
-              username: userRes.data.username,
-              email: userRes.data.email
-            });
-          }
-
-          if (recipeRes.data) {
-            const formatted: Recipe[] = recipeRes.data.map(r => ({
-              id: r.id,
-              title: r.title,
-              url: r.url,
-              foodType: r.food_type,
-              servings: r.servings,
-              servingsType: r.servings_type,
-              ingredients: r.ingredients,
-              steps: r.steps,
-              userId: r.user_id,
-              authorName: r.author_name,
-              originalUserId: r.original_user_id,
-              originalAuthorName: r.original_author_name,
-              createdAt: r.created_at
-            }));
-            setRecipes(formatted);
-          }
-        } catch (err) {
-          console.error('Fetch profile error:', err);
-        }
-      }
-      setIsLoading(false);
-    };
     fetchUserData();
   }, [userId]);
+
+  const handleUpdateUsername = async () => {
+    if (!newUsername.trim() || newUsername === userProfile?.username) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ username: newUsername })
+        .eq('id', user?.id);
+
+      if (error) throw error;
+      
+      await Promise.all([
+        refreshProfile(),
+        fetchUserData()
+      ]);
+      setIsEditing(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update username');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -68,10 +107,58 @@ export const UserProfilePage: React.FC = () => {
     return <div className="text-center py-12">User not found.</div>;
   }
 
+  const isOwner = user?.id === userId;
+
   return (
     <div className="space-y-8">
       <div className="border-b pb-6">
-        <h1 className="text-4xl font-bold">{userProfile.username}'s Kitchen</h1>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            {isEditing ? (
+              <div className="flex items-center gap-2 max-w-md">
+                <Input 
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  className="text-2xl font-bold h-12"
+                  placeholder="Enter new username"
+                  autoFocus
+                />
+                <Button 
+                  size="icon" 
+                  onClick={handleUpdateUsername}
+                  disabled={isUpdating || !newUsername.trim()}
+                >
+                  {isUpdating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                </Button>
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  onClick={() => {
+                    setIsEditing(false);
+                    setNewUsername(userProfile.username);
+                  }}
+                  disabled={isUpdating}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <h1 className="text-4xl font-bold">{userProfile.username}'s Kitchen</h1>
+                {isOwner && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setIsEditing(true)}
+                    className="h-8 w-8 text-muted-foreground"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
         <p className="text-muted-foreground mt-1">{recipes.length} saved recipes</p>
       </div>
 

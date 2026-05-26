@@ -4,12 +4,14 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ChefHat, User as UserIcon } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, ChefHat, User as UserIcon, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const RecipeFeed: React.FC = () => {
   const { user } = useAuth();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -17,7 +19,7 @@ export const RecipeFeed: React.FC = () => {
       if (user) {
         const { data } = await supabase
           .from('recipes')
-          .select('*')
+          .select('*, author:profiles!user_id(username)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false });
         
@@ -33,9 +35,9 @@ export const RecipeFeed: React.FC = () => {
             ingredients: r.ingredients,
             steps: r.steps,
             userId: r.user_id,
-            authorName: r.author_name,
+            authorName: (r.author as any)?.username || 'Unknown Chef',
             originalUserId: r.original_user_id,
-            originalAuthorName: r.original_author_name,
+            originalAuthorName: '', // We'll handle this if needed, or just omit for feed
             createdAt: r.created_at
           }));
           setRecipes(formattedRecipes);
@@ -45,6 +47,15 @@ export const RecipeFeed: React.FC = () => {
     };
     fetchRecipes();
   }, [user]);
+
+  const filteredRecipes = recipes.filter(recipe => {
+    const query = searchQuery.toLowerCase();
+    return (
+      recipe.title.toLowerCase().includes(query) ||
+      recipe.ingredients.some(ing => ing.name.toLowerCase().includes(query)) ||
+      recipe.foodType.toLowerCase().includes(query)
+    );
+  });
 
   if (isLoading) {
     return (
@@ -56,12 +67,21 @@ export const RecipeFeed: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">My Recipes</h1>
+        <div className="relative max-w-sm w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search your recipes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {recipes.map((recipe) => (
+        {filteredRecipes.map((recipe) => (
           <Link key={recipe.id} to={`/recipe/${recipe.id}`} className="block h-full">
             <Card className="h-[150px] flex flex-col hover:shadow-md transition-shadow cursor-pointer overflow-hidden group">
               <div className="h-1 w-full bg-primary/10 group-hover:bg-primary/20 transition-colors flex-shrink-0" />
@@ -99,6 +119,12 @@ export const RecipeFeed: React.FC = () => {
         ))}
       </div>
 
+      {recipes.length > 0 && filteredRecipes.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No recipes match your search.</p>
+        </div>
+      )}
+
       {recipes.length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">No recipes found. Add your first one!</p>
@@ -107,3 +133,4 @@ export const RecipeFeed: React.FC = () => {
     </div>
   );
 };
+

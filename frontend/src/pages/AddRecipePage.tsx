@@ -108,7 +108,6 @@ export const AddRecipePage: React.FC = () => {
         ingredients: ingredients.filter(i => i.name.trim() !== ''),
         steps: steps.filter(s => s.trim() !== ''),
         user_id: user.id,
-        author_name: user.username,
       });
 
       if (error) throw error;

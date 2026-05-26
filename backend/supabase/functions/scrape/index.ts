@@ -15,18 +15,28 @@ interface ScrapedIngredient {
 const UNITS = ['g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup', 'pcs', 'oz', 'lb', 'pinch', 'to taste'];
 
 const parseIngredient = (text: string): ScrapedIngredient => {
-  const amountRegex = /^(\d+[\/\d\.-]*)\s*/;
-  const amountMatch = text.match(amountRegex);
+  // Clean the text: remove checkboxes, bullet points, and weird symbols at the start
+  let cleaned = text.trim()
+    .replace(/^[▢☐\s•\-\*]+/u, '') // Remove checkboxes and bullet points
+    .replace(/\s+/g, ' ')         // Normalize whitespace
+    .trim();
+
+  // Regex to match:
+  // 1. Amount: numbers, fractions (1/2, ½), ranges (1-2), or decimals (1.5)
+  // 2. Unit: optional unit following the amount
+  const amountRegex = /^([\d\u00BC-\u00BE\u2150-\u215E\/\.\-\s]+)\s*/i;
+  const amountMatch = cleaned.match(amountRegex);
   
   let amount = '';
-  let remaining = text;
+  let remaining = cleaned;
 
   if (amountMatch) {
-    amount = amountMatch[1];
-    remaining = text.replace(amountRegex, '').trim();
+    amount = amountMatch[1].trim();
+    remaining = cleaned.replace(amountMatch[0], '').trim();
   }
 
   let unit = 'pcs'; 
+  // Look for unit at the START of the remaining text
   for (const u of UNITS) {
     const unitRegex = new RegExp(`^${u}s?\\b`, 'i');
     if (unitRegex.test(remaining)) {
@@ -36,12 +46,15 @@ const parseIngredient = (text: string): ScrapedIngredient => {
     }
   }
 
+  // Handle "of " suffix (e.g., "200g of blueberries")
   if (remaining.toLowerCase().startsWith('of ')) {
     remaining = remaining.substring(3).trim();
   }
 
+  // If we didn't find an amount at the start, check if it's "1" by default
+  // and ensure the name doesn't start with a unit that was missed
   return {
-    name: remaining || text,
+    name: remaining || cleaned,
     amount: amount || '1',
     unit: unit
   };

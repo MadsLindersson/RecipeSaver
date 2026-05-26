@@ -23,7 +23,7 @@ export const RecipeDetailsPage: React.FC = () => {
       if (id) {
         const { data } = await supabase
           .from('recipes')
-          .select('*')
+          .select('*, author:profiles!user_id(username), original_author:profiles!original_user_id(username)')
           .eq('id', id)
           .single();
         
@@ -38,9 +38,9 @@ export const RecipeDetailsPage: React.FC = () => {
             ingredients: data.ingredients,
             steps: data.steps,
             userId: data.user_id,
-            authorName: data.author_name,
+            authorName: (data.author as any)?.username || 'Unknown Chef',
             originalUserId: data.original_user_id,
-            originalAuthorName: data.original_author_name,
+            originalAuthorName: (data.original_author as any)?.username || '',
             createdAt: data.created_at
           };
           setRecipe(formatted);
@@ -64,9 +64,7 @@ export const RecipeDetailsPage: React.FC = () => {
         ingredients: recipe.ingredients,
         steps: recipe.steps,
         user_id: user.id,
-        author_name: user.username,
         original_user_id: recipe.originalUserId || recipe.userId,
-        original_author_name: recipe.originalAuthorName || recipe.authorName,
       });
 
       if (error) throw error;
